@@ -1,0 +1,20 @@
+{
+  "name": "doag/direct-openai-article-generator",
+  "description": "Direct server-side OpenAI article generation for WordPress",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": { "php": ">=8.1" },
+  "require-dev": {
+    "wp-coding-standards/wpcs": "^3.2",
+    "phpcompatibility/phpcompatibility-wp": "^2.1",
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+  },
+  "config": {
+    "allow-plugins": { "dealerdirect/phpcodesniffer-composer-installer": true },
+    "sort-packages": true
+  },
+  "scripts": {
+    "lint": "phpcs",
+    "fix": "phpcbf"
+  }
+}

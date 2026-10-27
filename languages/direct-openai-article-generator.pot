@@ -1,0 +1,302 @@
+# Copyright (C) 2026 Direct OpenAI Article Generator contributors
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Direct OpenAI Article Generator 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/direct-openai-article-generator\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-10-27T08:47:57+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: direct-openai-article-generator\n"
+
+#. Plugin Name of the plugin
+#: direct-openai-article-generator.php
+msgid "Direct OpenAI Article Generator"
+msgstr ""
+
+#. Description of the plugin
+#: direct-openai-article-generator.php
+msgid "Generate articles directly through the OpenAI API and save them as non-public drafts or reviewed posts."
+msgstr ""
+
+#. Author of the plugin
+#: direct-openai-article-generator.php
+msgid "Direct OpenAI Article Generator contributors"
+msgstr ""
+
+#: admin/class-generator-page.php:24
+#: admin/class-generator-page.php:88
+msgid "Article Generator"
+msgstr ""
+
+#: admin/class-generator-page.php:30
+#: includes/class-article-service.php:18
+msgid "You cannot generate articles."
+msgstr ""
+
+#: admin/class-generator-page.php:46
+msgid "This form has expired. Please submit the refreshed form."
+msgstr ""
+
+#: admin/class-generator-page.php:56
+msgid "An article is already being generated on this site. Wait for it to finish before trying again."
+msgstr ""
+
+#: admin/class-generator-page.php:63
+msgid "This form was already submitted or has expired. Review existing posts before trying again."
+msgstr ""
+
+#: admin/class-generator-page.php:95
+msgid "Edit draft"
+msgstr ""
+
+#: admin/class-generator-page.php:95
+msgid "Edit article"
+msgstr ""
+
+#: admin/class-generator-page.php:96
+msgid "Article created. Review facts, links and wording before publication."
+msgstr ""
+
+#: admin/class-generator-page.php:98
+msgid "Your brief and configured system prompt will be sent to OpenAI. Each generation can incur API costs. Only administrators with post creation permissions can use this form."
+msgstr ""
+
+#: admin/class-generator-page.php:105
+msgid "Topic / working title"
+msgstr ""
+
+#: admin/class-generator-page.php:106
+msgid "Target audience"
+msgstr ""
+
+#: admin/class-generator-page.php:107
+msgid "Language"
+msgstr ""
+
+#: admin/class-generator-page.php:108
+msgid "Target word count"
+msgstr ""
+
+#: admin/class-generator-page.php:109
+msgid "Tone"
+msgstr ""
+
+#: admin/class-generator-page.php:110
+msgid "Additional instructions"
+msgstr ""
+
+#: admin/class-generator-page.php:111
+msgid "Keywords"
+msgstr ""
+
+#: admin/class-generator-page.php:112
+msgid "Desired outline"
+msgstr ""
+
+#: admin/class-generator-page.php:113
+#: admin/class-settings-page.php:38
+msgid "Model"
+msgstr ""
+
+#: admin/class-generator-page.php:114
+msgid "Temperature (optional)"
+msgstr ""
+
+#: admin/class-generator-page.php:131
+msgid "Leave empty for the model default. Only set this if your model supports temperature. Models must support Chat Completions and JSON Schema structured output."
+msgstr ""
+
+#: admin/class-generator-page.php:135
+msgid "Additional content"
+msgstr ""
+
+#: admin/class-generator-page.php:137
+msgid "Generate FAQ"
+msgstr ""
+
+#: admin/class-generator-page.php:138
+msgid "Generate meta description"
+msgstr ""
+
+#: admin/class-generator-page.php:139
+msgid "Generate SEO title"
+msgstr ""
+
+#: admin/class-generator-page.php:143
+msgid "Article status"
+msgstr ""
+
+#: admin/class-generator-page.php:150
+msgid "Generate article"
+msgstr ""
+
+#: admin/class-generator-page.php:151
+msgid "Generating your article… Please keep this page open. This can take up to 90 seconds."
+msgstr ""
+
+#: admin/class-settings-page.php:20
+#: admin/class-settings-page.php:89
+msgid "OpenAI Article Generator"
+msgstr ""
+
+#: admin/class-settings-page.php:35
+msgid "Connection and defaults"
+msgstr ""
+
+#: admin/class-settings-page.php:37
+msgid "OpenAI API key"
+msgstr ""
+
+#: admin/class-settings-page.php:39
+msgid "Default system prompt"
+msgstr ""
+
+#: admin/class-settings-page.php:40
+msgid "Default language"
+msgstr ""
+
+#: admin/class-settings-page.php:41
+msgid "Default article status"
+msgstr ""
+
+#: admin/class-settings-page.php:65
+msgid "API key configured through wp-config.php."
+msgstr ""
+
+#: admin/class-settings-page.php:69
+msgid "Leave blank to keep the saved key. The saved key is never displayed."
+msgstr ""
+
+#: admin/class-settings-page.php:70
+msgid "A key is saved."
+msgstr ""
+
+#: admin/class-settings-page.php:70
+msgid "No key is saved."
+msgstr ""
+
+#: admin/class-settings-page.php:71
+msgid "Delete saved API key"
+msgstr ""
+
+#: admin/class-settings-page.php:87
+msgid "You cannot manage these settings."
+msgstr ""
+
+#: admin/class-settings-page.php:90
+msgid "When you generate an article, your inputs and system prompt are sent directly to OpenAI. An OpenAI API account with billing is required. This plugin has no telemetry, author-side data collection, external tracking scripts or tracking cookies."
+msgstr ""
+
+#: includes/class-article-input.php:14
+msgid "Interested general readers"
+msgstr ""
+
+#: includes/class-article-input.php:17
+msgid "Clear, factual and approachable"
+msgstr ""
+
+#: includes/class-article-input.php:56
+msgid "Enter a topic, language and valid model identifier."
+msgstr ""
+
+#: includes/class-article-input.php:59
+msgid "Choose a target length between 200 and 4000 words."
+msgstr ""
+
+#: includes/class-article-input.php:62
+msgid "You cannot use this article status."
+msgstr ""
+
+#: includes/class-article-input.php:65
+msgid "Temperature must be empty or a number from 0 to 2."
+msgstr ""
+
+#: includes/class-article-service.php:55
+msgid "The article could not be saved in WordPress. Check database availability before retrying. The API request may have incurred costs."
+msgstr ""
+
+#: includes/class-article-validator.php:11
+msgid "The generated article has an invalid structure or empty content. Please retry."
+msgstr ""
+
+#: includes/class-openai-client.php:18
+msgid "Ask an administrator to configure a valid OpenAI API key."
+msgstr ""
+
+#: includes/class-openai-client.php:39
+msgid "The API request configuration is invalid."
+msgstr ""
+
+#: includes/class-openai-client.php:43
+msgid "The API request is invalid or too large."
+msgstr ""
+
+#: includes/class-openai-client.php:63
+msgid "OpenAI did not respond in time. Try a shorter article. The request may still incur API costs."
+msgstr ""
+
+#: includes/class-openai-client.php:63
+msgid "Could not connect to OpenAI. Check the server network connection and try again."
+msgstr ""
+
+#: includes/class-openai-client.php:68
+msgid "OpenAI rejected the API key. Ask an administrator to check it."
+msgstr ""
+
+#: includes/class-openai-client.php:69
+msgid "This OpenAI project does not have permission for this request."
+msgstr ""
+
+#: includes/class-openai-client.php:70
+msgid "OpenAI rate limit or quota reached. Check billing and limits, then retry later."
+msgstr ""
+
+#: includes/class-openai-client.php:71
+msgid "OpenAI rejected the request. Check model access, structured-output support and temperature compatibility. Try leaving temperature empty."
+msgstr ""
+
+#: includes/class-openai-client.php:72
+msgid "OpenAI returned a service error. Please try again later."
+msgstr ""
+
+#: includes/class-openai-client.php:78
+msgid "OpenAI returned an empty response."
+msgstr ""
+
+#: includes/class-openai-client.php:82
+msgid "OpenAI returned an invalid API response."
+msgstr ""
+
+#: includes/class-openai-client.php:86
+msgid "The response was refused or incomplete. Adjust the topic or request a shorter article."
+msgstr ""
+
+#: includes/class-openai-client.php:90
+msgid "OpenAI returned no article content."
+msgstr ""
+
+#: includes/class-openai-client.php:94
+msgid "The generated article was not valid JSON. Please retry."
+msgstr ""
+
+#: includes/class-settings.php:38
+msgid "Draft"
+msgstr ""
+
+#: includes/class-settings.php:39
+msgid "Pending review"
+msgstr ""
+
+#: includes/class-settings.php:40
+msgid "Private"
+msgstr ""
+
+#: includes/class-settings.php:73
+msgid "The API key has an invalid format. The previous key was retained."
+msgstr ""
