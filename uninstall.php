@@ -18,6 +18,9 @@ if ( is_multisite() ) {
 			delete_option( 'doag_settings' );
 			delete_option( 'doag_generation_lock' );
 			delete_option( 'doag_generation_lock_owner' );
+			delete_option( 'doag_generation_lease' );
+			delete_option( 'doag_generation_worker' );
+			wp_unschedule_hook( 'doag_generate_article' );
 			restore_current_blog();
 		}
 		$doag_offset += 100;
@@ -27,4 +30,7 @@ if ( is_multisite() ) {
 	delete_option( 'doag_settings' );
 	delete_option( 'doag_generation_lock' );
 	delete_option( 'doag_generation_lock_owner' );
+	delete_option( 'doag_generation_lease' );
+	delete_option( 'doag_generation_worker' );
+	wp_unschedule_hook( 'doag_generate_article' );
 }

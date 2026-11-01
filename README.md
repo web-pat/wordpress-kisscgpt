@@ -12,8 +12,9 @@ An installable WordPress plugin that generates articles **directly through the O
 - Statuses: draft (`draft`), pending review (`pending`), private (`private`). No publishing option.
 - Structured JSON, server-side validation, HTML sanitization, and persistence using `wp_insert_post()`.
 - SEO data without any dependency on an SEO plugin.
-- Traditional form processing; JavaScript only disables the submit button and displays a progress message.
-- Form inputs are preserved on recoverable errors. Successful requests use POST/Redirect/GET.
+- Traditional form submission queues generation through WordPress cron instead of waiting for OpenAI in the admin request.
+- JavaScript disables the submit button and refreshes pending job status; a manual refresh link works without JavaScript.
+- Form inputs are preserved on recoverable errors. Queued requests use POST/Redirect/GET.
 
 ## Requirements
 
@@ -22,7 +23,8 @@ An installable WordPress plugin that generates articles **directly through the O
 - An OpenAI API account, project key, sufficient API credits or billing, and model access. A ChatGPT subscription alone does not include API credits.
 - A model supporting **Chat Completions** and **Structured Outputs / JSON Schema**. Not every OpenAI model supports this interface.
 - An administrator with `manage_options`, `edit_posts`, and the post type's `create_posts` capability. Private posts additionally require `publish_posts`.
-- The web server, PHP-FPM, and proxy should allow requests lasting at least 120 seconds. The OpenAI timeout is 90 seconds.
+- Working WordPress cron: either normal loopback-based WP-Cron or an external runner when `DISABLE_WP_CRON` is enabled. Jobs must start within ten minutes.
+- The cron worker should allow requests lasting at least 120 seconds. The OpenAI timeout is 90 seconds. Admin page requests do not wait for the API; background workers still use server resources and must fit hosting limits.
 
 ## Installation
 
@@ -63,7 +65,7 @@ The default system prompt, language, and article status can be changed in the se
 2. Choose an approximate length of **200–4,000 words**.
 3. Enable FAQ, meta description, and SEO title as needed.
 4. Check the model and status. **Leave temperature empty by default**; this omits the parameter from the request. Supported models accept values from 0 to 2.
-5. Select “Generate article” and keep the page open.
+5. Select “Generate article”. Generation runs in the background; you may leave the page and return later. While open, the status page refreshes automatically.
 6. Open the generated post using **Edit draft**. For other statuses, the link is labeled “Edit article”.
 7. Review facts, sources, links, and wording before publishing through the WordPress editor, if appropriate.
 
@@ -74,8 +76,10 @@ The API receives a strict schema containing `title`, `content_html`, `excerpt`, 
 - Error messages distinguish key/permission issues, quota/rate limits, connection problems, timeouts, incompatible requests, and invalid responses.
 - Upstream error messages are never passed through to the user.
 - There are **no automatic retries**, to avoid unintended additional costs.
-- Single-use tokens are valid for 30 minutes; a successful submission or one forwarded to the API consumes the form token. A new attempt receives a new token.
-- An additional lock serializes generation requests per site. Orphaned locks normally expire after five minutes. If a process is terminated abruptly while creating the lock, an administrator can run `wp option delete doag_generation_lock` and `wp option delete doag_generation_lock_owner` while the site has no active generation requests.
+- Single-use tokens are valid for 30 minutes; successfully queuing a job consumes its form token. A new attempt receives a new token.
+- Atomic database leases serialize queued and running generation requests per site. Expired leases are replaced using compare-and-swap; a stale request cannot delete or overwrite a new owner's lease. Queue leases expire after fifteen minutes, and worker leases after five minutes.
+- Queued jobs older than ten minutes are rejected without calling OpenAI. Duplicate cron deliveries do not repeat a claimed job. Failed or interrupted jobs are not automatically retried.
+- If a worker is terminated abruptly, the status eventually reports an unknown outcome. Check the post list before resubmitting. Only when there are no active workers, administrators can clear orphaned leases with `wp option delete doag_generation_lease` and `wp option delete doag_generation_worker`.
 - After a browser or proxy interruption, check the post list first. A server-side request may still have completed; even a timeout can incur API costs.
 
 ## SEO Metadata
@@ -102,9 +106,11 @@ These values are not automatically written to the page head or copied into Yoast
 | `Article_Validator` | Data types, lengths, HTML and text sanitization |
 | `Article_Service` | Permissions, generation, post creation, and hooks |
 | `Post_Meta_Adapter` | Plugin-owned SEO metadata |
-| `Admin\Generator_Page` | Form, nonce, single-use token, lock, and result display |
+| `Generation_Lock` | Ownership-aware atomic database leases with expiry |
+| `Background_Generator` | Single-use submissions, cron scheduling, user context, job status, and exception containment |
+| `Admin\Generator_Page` | Form, nonce, queue submission, and result display |
 
-There are no custom database tables, background generation jobs, or public AJAX/REST endpoints. The namespace is `DOAG`; the text domain is `direct-openai-article-generator`.
+There are no custom database tables or public AJAX/REST endpoints. Background jobs use WordPress cron and short-lived transients. The namespace is `DOAG`; the text domain is `direct-openai-article-generator`.
 
 ## Security
 
@@ -123,7 +129,7 @@ Other installed plugins and server-side HTTP debuggers operate within the same t
 
 **When generating an article, all completed editorial fields and the configured system prompt are sent directly to OpenAI.** The key is transmitted in the Authorization header for authentication. OpenAI also necessarily sees the WordPress server's IP address. The plugin does not send the user's email address, WordPress user ID, or existing posts as additional prompt data.
 
-Generated content is stored in the WordPress database. On errors, form values are retained only in the current response; the plugin does not store a prompt history. Short-lived transients contain only form tokens/user IDs or result post IDs.
+Generated content is stored in the WordPress database. Background job transients retain the editorial brief, submitting user ID, job status, and result/error for up to 30 minutes, including to restore form values after errors. The configured system prompt and API key are read when the worker runs, not copied into the job. Other short-lived transients contain form tokens/user IDs and per-user job IDs. There is no permanent prompt history.
 
 The plugin itself:
 
@@ -162,7 +168,7 @@ add_action( 'doag_article_created', function ( $post_id, $article, $input ) {
 
 ## Deactivation and Uninstallation
 
-Deactivation preserves all data. **Deleting/uninstalling** removes the plugin settings, including the database key and lock options, on all sites in a Multisite installation. Generated posts and their post metadata are explicitly preserved. The `wp-config.php` constant also remains unchanged. Short-lived form/result transients expire within 30 minutes and are removed by WordPress's normal transient cleanup; a persistent object cache manages its own expiration times.
+Deactivation preserves all data. **Deleting/uninstalling** removes the plugin settings, including the database key and lease/legacy lock options, and unschedules generation events on all sites in a Multisite installation. Generated posts and their post metadata are explicitly preserved. The `wp-config.php` constant also remains unchanged. Short-lived form/job transients expire within 30 minutes and are removed by WordPress's normal transient cleanup; a persistent object cache manages its own expiration times.
 
 ## Development and Local Testing
 
@@ -185,7 +191,7 @@ wp eval-file wp-content/plugins/direct-openai-article-generator/tests/integratio
 
 The test uses real WordPress functions and a real test database, but intercepts all HTTP calls through `pre_http_request`. It requires no real OpenAI key and incurs no API costs. Test posts are deleted and settings restored in the `finally` block. Test data may remain if the process is terminated abruptly. The tests are included in the source repository, not the release ZIP.
 
-Checks cover permissions, the prohibited publish status, key exposure/precedence, request parameters, HTTP/JSON/transport errors, all three allowed statuses, metadata, FAQ, backslashes, XSS/shortcode sanitization, revalidation of filter output, and insertion failures. No PHPUnit bootstrap or additional test framework is required.
+Checks cover permissions, the prohibited publish status, key exposure/precedence, request parameters, HTTP/JSON/transport errors, all three allowed statuses, metadata, FAQ bracket escaping, backslashes, XSS/shortcode sanitization, revalidation of filter output, insertion failures, lease contention/stale readers, background scheduling, duplicate delivery, user-context restoration, expired jobs, and safe exception handling. No PHPUnit bootstrap or additional test framework is required. Tests invoke workers directly, without requiring a live cron runner.
 
 ### Manual Admin Test
 
@@ -193,10 +199,13 @@ Checks cover permissions, the prohibited publish status, key exposure/precedence
 2. Access the generator and settings page as an editor/subscriber: access must be denied.
 3. Submit the form with a missing/invalid nonce: it must be rejected with HTTP 403.
 4. Submit the prohibited `publish` status or an invalid length: the request must be rejected and inputs preserved.
-5. Generate a short draft with a valid model; check the edit link, content, and metadata.
+5. Queue a short draft with a valid model; the POST must redirect promptly without waiting for OpenAI. Verify pending status, then the edit link, content, and metadata after cron processes the job.
 6. Resubmit the same POST request: the single-use token must be rejected.
 7. Test an invalid key, empty temperature, and an incompatible model; verify that errors are static and contain no secret.
 8. Delete the plugin: settings must be removed, while posts and SEO metadata are preserved.
+9. Disable cron temporarily, submit a job, and confirm that no API request occurs in the admin request. After ten minutes, running the queued event must reject it without an API call.
+10. Terminate a running worker in a disposable installation. Verify that status eventually reports the uncertain outcome, expired leases allow a later submission, and no automatic retry occurs.
+11. On a disposable installation, downgrade PHP below 8.1 with the plugin already active. Frontend requests should still load; the admin must show the PHP requirement notice.
 
 Live API tests require your own OpenAI key and incur costs. The documented automated test does not replace testing a live model or verifying your own hosting environment.
 
@@ -228,7 +237,7 @@ Not yet implemented:
 - Revision of existing posts
 - Automatic internal linking
 - Image generation and Media Library integration
-- Scheduled generation and batch processing
+- Recurring scheduled generation and batch processing
 - Custom prompt templates and multiple OpenAI configurations
 - Yoast, Rank Math, and SEOPress adapters
 - WooCommerce product descriptions and custom post types

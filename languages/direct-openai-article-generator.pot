@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-27T08:47:57+00:00\n"
+"POT-Creation-Date: 2026-11-01T18:18:14+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: direct-openai-article-generator\n"
@@ -29,115 +29,116 @@ msgstr ""
 msgid "Direct OpenAI Article Generator contributors"
 msgstr ""
 
-#: admin/class-generator-page.php:24
-#: admin/class-generator-page.php:88
+#: admin/class-generator-page.php:26
+#: admin/class-generator-page.php:69
 msgid "Article Generator"
 msgstr ""
 
-#: admin/class-generator-page.php:30
+#: admin/class-generator-page.php:32
 #: includes/class-article-service.php:18
+#: includes/class-background-generator.php:20
 msgid "You cannot generate articles."
 msgstr ""
 
-#: admin/class-generator-page.php:46
+#: admin/class-generator-page.php:53
 msgid "This form has expired. Please submit the refreshed form."
 msgstr ""
 
-#: admin/class-generator-page.php:56
-msgid "An article is already being generated on this site. Wait for it to finish before trying again."
+#: admin/class-generator-page.php:74
+msgid "Your article is queued or generating in the background. You may leave this page. This page refreshes automatically; WordPress cron must be running."
 msgstr ""
 
-#: admin/class-generator-page.php:63
-msgid "This form was already submitted or has expired. Review existing posts before trying again."
+#: admin/class-generator-page.php:74
+msgid "Refresh status"
 msgstr ""
 
-#: admin/class-generator-page.php:95
+#: admin/class-generator-page.php:79
 msgid "Edit draft"
 msgstr ""
 
-#: admin/class-generator-page.php:95
+#: admin/class-generator-page.php:79
 msgid "Edit article"
 msgstr ""
 
-#: admin/class-generator-page.php:96
+#: admin/class-generator-page.php:80
 msgid "Article created. Review facts, links and wording before publication."
 msgstr ""
 
-#: admin/class-generator-page.php:98
+#: admin/class-generator-page.php:82
 msgid "Your brief and configured system prompt will be sent to OpenAI. Each generation can incur API costs. Only administrators with post creation permissions can use this form."
 msgstr ""
 
-#: admin/class-generator-page.php:105
+#: admin/class-generator-page.php:89
 msgid "Topic / working title"
 msgstr ""
 
-#: admin/class-generator-page.php:106
+#: admin/class-generator-page.php:90
 msgid "Target audience"
 msgstr ""
 
-#: admin/class-generator-page.php:107
+#: admin/class-generator-page.php:91
 msgid "Language"
 msgstr ""
 
-#: admin/class-generator-page.php:108
+#: admin/class-generator-page.php:92
 msgid "Target word count"
 msgstr ""
 
-#: admin/class-generator-page.php:109
+#: admin/class-generator-page.php:93
 msgid "Tone"
 msgstr ""
 
-#: admin/class-generator-page.php:110
+#: admin/class-generator-page.php:94
 msgid "Additional instructions"
 msgstr ""
 
-#: admin/class-generator-page.php:111
+#: admin/class-generator-page.php:95
 msgid "Keywords"
 msgstr ""
 
-#: admin/class-generator-page.php:112
+#: admin/class-generator-page.php:96
 msgid "Desired outline"
 msgstr ""
 
-#: admin/class-generator-page.php:113
+#: admin/class-generator-page.php:97
 #: admin/class-settings-page.php:38
 msgid "Model"
 msgstr ""
 
-#: admin/class-generator-page.php:114
+#: admin/class-generator-page.php:98
 msgid "Temperature (optional)"
 msgstr ""
 
-#: admin/class-generator-page.php:131
+#: admin/class-generator-page.php:115
 msgid "Leave empty for the model default. Only set this if your model supports temperature. Models must support Chat Completions and JSON Schema structured output."
 msgstr ""
 
-#: admin/class-generator-page.php:135
+#: admin/class-generator-page.php:119
 msgid "Additional content"
 msgstr ""
 
-#: admin/class-generator-page.php:137
+#: admin/class-generator-page.php:121
 msgid "Generate FAQ"
 msgstr ""
 
-#: admin/class-generator-page.php:138
+#: admin/class-generator-page.php:122
 msgid "Generate meta description"
 msgstr ""
 
-#: admin/class-generator-page.php:139
+#: admin/class-generator-page.php:123
 msgid "Generate SEO title"
 msgstr ""
 
-#: admin/class-generator-page.php:143
+#: admin/class-generator-page.php:127
 msgid "Article status"
 msgstr ""
 
-#: admin/class-generator-page.php:150
+#: admin/class-generator-page.php:134
 msgid "Generate article"
 msgstr ""
 
-#: admin/class-generator-page.php:151
-msgid "Generating your article… Please keep this page open. This can take up to 90 seconds."
+#: admin/class-generator-page.php:135
+msgid "Queuing your article for background generation…"
 msgstr ""
 
 #: admin/class-settings-page.php:20
@@ -193,6 +194,10 @@ msgstr ""
 msgid "When you generate an article, your inputs and system prompt are sent directly to OpenAI. An OpenAI API account with billing is required. This plugin has no telemetry, author-side data collection, external tracking scripts or tracking cookies."
 msgstr ""
 
+#: direct-openai-article-generator.php:23
+msgid "Direct OpenAI Article Generator requires PHP 8.1 or newer. Generation is disabled until PHP is upgraded."
+msgstr ""
+
 #: includes/class-article-input.php:14
 msgid "Interested general readers"
 msgstr ""
@@ -223,6 +228,35 @@ msgstr ""
 
 #: includes/class-article-validator.php:11
 msgid "The generated article has an invalid structure or empty content. Please retry."
+msgstr ""
+
+#: includes/class-background-generator.php:28
+msgid "An article is already queued or being generated on this site. Wait for it to finish before trying again."
+msgstr ""
+
+#: includes/class-background-generator.php:34
+msgid "This form was already submitted or has expired. Review existing posts before trying again."
+msgstr ""
+
+#: includes/class-background-generator.php:45
+#: includes/class-background-generator.php:52
+msgid "The generation job could not be saved. No API request was made."
+msgstr ""
+
+#: includes/class-background-generator.php:63
+msgid "The generation job could not be scheduled. Check WordPress cron configuration. No API request was made."
+msgstr ""
+
+#: includes/class-background-generator.php:77
+msgid "Generation did not finish in time. Check existing posts before submitting again; an API request may have incurred costs. Also check WordPress cron and server timeouts."
+msgstr ""
+
+#: includes/class-background-generator.php:99
+msgid "The queued job expired before it started. Check WordPress cron configuration. No API request was made."
+msgstr ""
+
+#: includes/class-background-generator.php:111
+msgid "Generation stopped unexpectedly. Check existing posts before submitting again; the API request may have incurred costs."
 msgstr ""
 
 #: includes/class-openai-client.php:18

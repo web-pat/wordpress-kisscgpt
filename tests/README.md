@@ -1,5 +1,22 @@
 # Qualitätsprüfung Version 1.0.0
 
+## Reparaturen: Prüfung am 01.11.2026
+
+Wegwerfbare Container-Umgebung mit WordPress 6.7, PHP 8.1 CLI und SQLite Database Integration 3.1.2:
+
+- PHP-Syntax aller Plugin- und Testdateien: bestanden.
+- PHPCS gemäß `phpcs.xml.dist`: keine Fehler oder Warnungen.
+- Erweiterte `integration.php`: bestanden; einschließlich atomarer Leases mit simuliertem konkurrierenden Zugriff, Scheduling-/Speicherfehlern, doppelter Cron-Zustellung, Berechtigungsprüfung, Benutzerkontext und Exception-Behandlung.
+- Authentifizierter HTTP-Formularablauf bei deaktiviertem automatischen Cron: POST/Redirect zur Statusseite in ca. 0,05 Sekunden; anschließend Verarbeitung über den registrierten Cron-Hook, Entwurf mit Bearbeitungslink und abgelehnter POST-Wiederholung.
+- Frontend mit aktivem Plugin: HTTP 200 ohne kritischen Fehler.
+- Isolierter Bootstrap-Test unter PHP 7.4: inkompatible Implementierungsdateien werden nicht geladen; PHP-Hinweis wird registriert. Ein kompletter WordPress-Downgrade-Test wurde nicht bestätigt, da der SQLite-Testtreiber unter diesem Container keine Verbindung aufbauen konnte.
+- FAQ-Escaping: Die vorherige Review-Vermutung war ein Fehlalarm; WordPress erhält gültige Entities. Ein Regressionstest bestätigt einfache Entity-Kodierung ohne ausführbare Shortcodes.
+- Keine echten OpenAI-Aufrufe oder Kosten. MySQL/MariaDB, Multisite, persistenter Objektcache und produktionsspezifische Worker-Timeouts bleiben separat zu prüfen.
+
+## Historischer Prüfstand
+
+Die folgenden Ergebnisse beziehen sich auf den ursprünglichen Stand vom 27.10.2026, nicht auf die späteren Reparaturen. Die ursprüngliche Zwei-Options-Sperre wurde durch atomare Datenbank-Leases ersetzt.
+
 Durchgeführt am 27.10.2026 in einer lokalen, wegwerfbaren Installation:
 
 - WordPress 7.1.3 (Download von wordpress.org/latest.zip)

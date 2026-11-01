@@ -17,6 +17,16 @@ namespace DOAG;
 
 defined( 'ABSPATH' ) || exit;
 
+// Keep this bootstrap parseable on older PHP versions after a hosting downgrade.
+if ( version_compare( PHP_VERSION, '8.1', '<' ) ) {
+	$doag_php_notice = static function () {
+		echo '<div class="notice notice-error"><p>' . esc_html__( 'Direct OpenAI Article Generator requires PHP 8.1 or newer. Generation is disabled until PHP is upgraded.', 'direct-openai-article-generator' ) . '</p></div>';
+	};
+	add_action( 'admin_notices', $doag_php_notice );
+	add_action( 'network_admin_notices', $doag_php_notice );
+	return;
+}
+
 define( 'DOAG_VERSION', '1.0.0' );
 define( 'DOAG_FILE', __FILE__ );
 
@@ -28,6 +38,8 @@ require_once __DIR__ . '/includes/class-article-validator.php';
 require_once __DIR__ . '/includes/interface-seo-adapter.php';
 require_once __DIR__ . '/includes/class-post-meta-adapter.php';
 require_once __DIR__ . '/includes/class-article-service.php';
+require_once __DIR__ . '/includes/class-generation-lock.php';
+require_once __DIR__ . '/includes/class-background-generator.php';
 require_once __DIR__ . '/admin/class-settings-page.php';
 require_once __DIR__ . '/admin/class-generator-page.php';
 require_once __DIR__ . '/includes/class-plugin.php';

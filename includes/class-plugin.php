@@ -11,8 +11,10 @@ final class Plugin {
 		add_action( 'init', array( self::class, 'translations' ) );
 		$settings = new Settings();
 		$service  = new Article_Service( new OpenAI_Client( $settings ), new Post_Meta_Adapter() );
+		$jobs     = new Background_Generator( $service );
+		$jobs->register();
 		( new Admin\Settings_Page( $settings ) )->register();
-		( new Admin\Generator_Page( $settings, $service ) )->register();
+		( new Admin\Generator_Page( $settings, $jobs ) )->register();
 	}
 
 	public static function translations(): void {

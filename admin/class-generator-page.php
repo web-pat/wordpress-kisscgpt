@@ -5,6 +5,7 @@ namespace DOAG\Admin;
 
 use DOAG\Article_Input;
 use DOAG\Article_Service;
+use DOAG\Background_Generator;
 use DOAG\Settings;
 
 defined( 'ABSPATH' ) || exit;
@@ -13,8 +14,9 @@ final class Generator_Page {
 
 	private array $input      = array();
 	private ?\WP_Error $error = null;
+	private ?array $job       = null;
 
-	public function __construct( private Settings $settings, private Article_Service $service ) {}
+	public function __construct( private Settings $settings, private Background_Generator $jobs ) {}
 
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'menu' ) );
@@ -31,6 +33,11 @@ final class Generator_Page {
 		}
 		wp_enqueue_script( 'doag-admin', plugins_url( 'assets/admin.js', DOAG_FILE ), array(), DOAG_VERSION, true );
 		$this->input = Article_Input::defaults( $this->settings );
+		$this->job   = $this->jobs->current();
+		if ( $this->job && 'error' === $this->job['status'] ) {
+			$this->input = $this->job['input'];
+			$this->error = new \WP_Error( 'generation', $this->job['error'] );
+		}
 		if ( 'POST' !== sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) {
 			return;
 		}
@@ -46,44 +53,11 @@ final class Generator_Page {
 			$this->error = new \WP_Error( 'token', __( 'This form has expired. Please submit the refreshed form.', 'direct-openai-article-generator' ) );
 			return;
 		}
-		// A constant option value makes a duplicate INSERT a no-op, even under contention.
-		$lock = get_option( 'doag_generation_lock_owner' );
-		if ( is_array( $lock ) && ( $lock['expires'] ?? 0 ) < time() ) {
-			delete_option( 'doag_generation_lock' );
-			delete_option( 'doag_generation_lock_owner' );
-		}
-		if ( ! add_option( 'doag_generation_lock', '1', '', false ) ) {
-			$this->error = new \WP_Error( 'busy', __( 'An article is already being generated on this site. Wait for it to finish before trying again.', 'direct-openai-article-generator' ) );
-			return;
-		}
-		update_option(
-			'doag_generation_lock_owner',
-			array(
-				'token'   => $token,
-				'expires' => time() + 300,
-			),
-			false
-		);
-		try {
-			$token_key = 'doag_form_' . $token;
-			if ( (int) get_transient( $token_key ) !== get_current_user_id() ) {
-				$this->error = new \WP_Error( 'replay', __( 'This form was already submitted or has expired. Review existing posts before trying again.', 'direct-openai-article-generator' ) );
-				return;
-			}
-			delete_transient( $token_key );
-			$result = $this->service->generate( $this->input );
-		} finally {
-			$current = get_option( 'doag_generation_lock_owner' );
-			if ( is_array( $current ) && ( $current['token'] ?? '' ) === $token ) {
-				delete_option( 'doag_generation_lock_owner' );
-				delete_option( 'doag_generation_lock' );
-			}
-		}
+		$result = $this->jobs->enqueue( $this->input, $token );
 		if ( is_wp_error( $result ) ) {
 			$this->error = $result;
 			return;
 		}
-		set_transient( 'doag_result_' . get_current_user_id(), $result, 300 );
 		wp_safe_redirect( admin_url( 'admin.php?page=doag-generator' ) );
 		exit;
 	}
@@ -96,8 +70,11 @@ final class Generator_Page {
 		if ( $this->error ) {
 			echo '<div class="notice notice-error" role="alert"><p>' . esc_html( $this->error->get_error_message() ) . '</p></div>';
 		}
-		$post_id = (int) get_transient( 'doag_result_' . get_current_user_id() );
-		delete_transient( 'doag_result_' . get_current_user_id() );
+		if ( $this->job && in_array( $this->job['status'], array( 'queued', 'running' ), true ) ) {
+			echo '<div class="notice notice-info"><p id="doag-job-pending" role="status">' . esc_html__( 'Your article is queued or generating in the background. You may leave this page. This page refreshes automatically; WordPress cron must be running.', 'direct-openai-article-generator' ) . '</p><p><a href="' . esc_url( admin_url( 'admin.php?page=doag-generator' ) ) . '">' . esc_html__( 'Refresh status', 'direct-openai-article-generator' ) . '</a></p></div></div>';
+			return;
+		}
+		$post_id = $this->job && 'complete' === $this->job['status'] ? (int) $this->job['post_id'] : 0;
 		if ( $post_id && current_user_can( 'edit_post', $post_id ) ) {
 			$label = 'draft' === get_post_status( $post_id ) ? __( 'Edit draft', 'direct-openai-article-generator' ) : __( 'Edit article', 'direct-openai-article-generator' );
 			echo '<div class="notice notice-success"><p>' . esc_html__( 'Article created. Review facts, links and wording before publication.', 'direct-openai-article-generator' ) . ' <a href="' . esc_url( get_edit_post_link( $post_id, 'raw' ) ) . '">' . esc_html( $label ) . '</a></p></div>';
@@ -155,6 +132,6 @@ final class Generator_Page {
 		}
 		echo '</select></td></tr></table>';
 		submit_button( __( 'Generate article', 'direct-openai-article-generator' ) );
-		echo '<p id="doag-progress" role="status" hidden>' . esc_html__( 'Generating your article… Please keep this page open. This can take up to 90 seconds.', 'direct-openai-article-generator' ) . '</p></form></div>';
+		echo '<p id="doag-progress" role="status" hidden>' . esc_html__( 'Queuing your article for background generation…', 'direct-openai-article-generator' ) . '</p></form></div>';
 	}
 }

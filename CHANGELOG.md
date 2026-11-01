@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- PHP-Versionsprüfung vor dem Laden der Implementierung; eine PHP-Herabstufung legt WordPress nicht durch inkompatible Plugin-Dateien lahm.
+- Atomare Datenbank-Leases ersetzen die bisherige Zwei-Options-Sperre; veraltete Requests können neue Sperren weder überschreiben noch löschen.
+- Artikelgenerierung läuft einmalig über WP-Cron, statt den Admin-Request bis zu 90 Sekunden zu blockieren; Statusanzeige mit automatischer oder manueller Aktualisierung.
+- Hintergrundjobs prüfen die Berechtigungen des ursprünglichen Benutzers erneut, stellen den vorherigen Benutzerkontext wieder her und zeigen bei Exceptions keine internen Fehlermeldungen an.
+- Regressionstests für konkurrierende Leases, doppelte Cron-Zustellung, abgelaufene Jobs, Exceptions und bereits korrektes FAQ-Bracket-Escaping.
+- Dokumentation zu Cron-Voraussetzungen und kurzzeitiger Speicherung von Briefings; Deinstallation entfernt auch Cron-Events und neue Leases.
+
 ## 1.0.0 — 2026-10-27
 
 - Native Einstellungsseite mit Settings API und optionalem API-Key aus `wp-config.php`.
