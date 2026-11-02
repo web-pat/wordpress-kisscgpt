@@ -69,6 +69,38 @@ The default system prompt, language, and article status can be changed in the se
 6. Open the generated post using **Edit draft**. For other statuses, the link is labeled “Edit article”.
 7. Review facts, sources, links, and wording before publishing through the WordPress editor, if appropriate.
 
+### How To: Generate Your First Draft
+
+1. Under **Settings → OpenAI Article Generator**, save your API key and model. Set **Default language** to your desired output language, such as `English`; the initial default is `Deutsch`, independently of the WordPress interface language. Keep **Default article status** set to **Draft** and save changes.
+2. Open **Article Generator** and try this editorial brief:
+
+   | Field | Example |
+   |---|---|
+   | Topic / working title | Starting a small balcony herb garden |
+   | Target audience | Beginners with limited outdoor space |
+   | Language | English |
+   | Target word count | 600 |
+   | Tone | Practical, clear and encouraging |
+   | Additional instructions | Explain drainage and watering. Avoid unsupported claims and invented quotations. |
+   | Keywords | balcony herbs, container gardening, beginner herb garden |
+   | Desired outline | Choosing containers; selecting herbs; planting; watering; common mistakes (one heading per line) |
+
+3. Leave **Temperature (optional)** empty. Keep **Generate meta description** and **Generate SEO title** checked; optionally check **Generate FAQ**. Select **Draft**, then **Generate article**. This is a live API request and can incur costs.
+4. Wait for the success notice, then select **Edit draft**. Without JavaScript, use **Refresh status**. You can also return to **Article Generator** while logged in as the same administrator.
+5. Review the generated title, article, and excerpt in the WordPress editor. Add categories, tags, images, and any required SEO-plugin fields manually, then save or publish through the editor.
+
+The topic is a working title, not a guarantee of the final post title. Keywords and outline are free-text editorial guidance; a comma-separated keyword list and one heading per outline line are useful conventions, not a required parsing format. Do not request raw JSON or a complete HTML document: the plugin supplies its own output-format instructions.
+
+### Defaults and Where To Find Results
+
+- New forms start at **1,000 words**, with a general-reader audience and a clear, factual, approachable tone. FAQ is off; SEO title and meta description are on. Topic, additional instructions, keywords, outline, and temperature start empty.
+- Model, language, and status are copied from settings into each new form and can be overridden for that article. Form overrides do not change saved defaults. The system prompt is site-wide and is edited only in settings.
+- Only **one generation job per site** can be queued or running at a time, including submissions by other administrators. This is not a batch queue. Keep the plugin active until the job finishes; there is no cancel or retry button.
+- Each successful generation creates a **new standard WordPress post**, authored by the submitting administrator, with a title, HTML content, and excerpt. It does not revise an existing post, assign keyword tags, or generate images.
+- Find the result under **Posts → All Posts** even if you closed the generator page or its success notice has expired. Draft and pending-review posts await editorial action; private posts use WordPress's normal private visibility and require `publish_posts` to generate.
+- The generator shows the current user's latest job, not a permanent history. Status notices and recoverable brief data are retained for **30 minutes from submission**; generated posts remain afterward. Copy any brief you want to reuse before that retention period ends.
+- Avoid changing the API key or system prompt while a job is queued: both are read when the worker runs. The worker also rechecks the submitting user's permissions.
+
 The API receives a strict schema containing `title`, `content_html`, `excerpt`, `seo_title`, `meta_description`, `keywords`, and `faq`. FAQ answers are appended to the article as text, with the questions as headings. The word count remains an approximate target. The client limits output to 12,000 completion tokens and the HTTP response to 1 MiB. Incomplete, refused, or incorrectly structured responses do not create a post.
 
 ### Errors and Duplicate Submissions
@@ -82,6 +114,35 @@ The API receives a strict schema containing `title`, `content_html`, `excerpt`, 
 - Job records and per-user status pointers use non-autoloaded database options, so clearing or evicting the object cache does not discard queued work or its result. Database compare-and-swap claims also prevent stale queued reads from repeating an API call. Outstanding transient-backed jobs from older versions are adopted when accessed.
 - If a worker is terminated abruptly, the status eventually reports an unknown outcome. Check the post list before resubmitting. Only when there are no active workers, administrators can clear orphaned leases with `wp option delete doag_generation_lease` and `wp option delete doag_generation_worker`.
 - After a browser or proxy interruption, check the post list first. A server-side request may still have completed; even a timeout can incur API costs.
+
+### How To: Troubleshoot Generation
+
+| Symptom | What to check or do |
+|---|---|
+| Article Generator is missing or access is denied | Use an administrator account with the capabilities listed under Requirements. Editors cannot use the generator by default. |
+| A valid key was saved, but the plugin reports a missing or rejected key | Check OpenAI project access and billing. If the API-key constant is defined in `wp-config.php`, correct it there; it overrides the database key even when empty. |
+| OpenAI rejects the request | Check that the exact model identifier is available to your project and supports Chat Completions with JSON Schema structured output. Clear temperature and try again after checking for an existing post. |
+| Rate limit or quota reached | Check API billing, credits, and project limits in OpenAI; a ChatGPT subscription is separate. Wait before manually submitting again. |
+| The page stays queued or generating | Check WordPress cron and hosting worker timeouts. Automatic page refresh only displays status; it is not a replacement for a working cron runner. See the commands below. |
+| Response is incomplete or times out | Check existing posts first. Request fewer words or a simpler outline on a new attempt; the previous API request may still have incurred costs. |
+| SEO title or description is not visible on the website | These are stored as plugin metadata only. Copy them into your SEO plugin manually or implement an integration using the documented hooks. |
+
+For administrators with **WP-CLI**, run these checks from the WordPress installation directory (on Multisite, add `--url=https://your-site.example` to target the correct site):
+
+```bash
+wp cron test
+wp cron event list --fields=hook,next_run_gmt,next_run_relative
+```
+
+Look for `doag_generate_article` while a job is waiting. An event may disappear from the list once a worker starts, so its absence alone does not prove failure. If normal cron spawning is disabled intentionally, verify that your external runner is executing due events frequently enough to start jobs within ten minutes.
+
+After checking **Posts → All Posts** and confirming that no worker is already running, you can manually run a queued generation event:
+
+```bash
+wp cron event run doag_generate_article --due-now
+```
+
+This command runs real queued work and **can incur OpenAI API costs**; it is not a connection test. It does not create a new job or retry a failed one. Jobs already ten minutes old are rejected without an API call. Once cron is fixed and the old job has failed or expired, review the restored brief and submit a new request manually if needed. Do not delete leases while workers may still be active.
 
 ## SEO Metadata
 
