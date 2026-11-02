@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hintergrundjobs und Statusverweise werden in nicht automatisch geladenen Datenbankoptionen gespeichert und überleben Cache-Leerungen. Zeitgesteuerte und lesende Bereinigung entfernt abgelaufene Jobs; bestehende transiente Jobs werden übernommen. Regressionstests prüfen Cache-Verlust, fehlgeschlagene Claims, Bereinigung und Upgrade-Verhalten.
 - PHP-Versionsprüfung vor dem Laden der Implementierung; eine PHP-Herabstufung legt WordPress nicht durch inkompatible Plugin-Dateien lahm.
 - Atomare Datenbank-Leases ersetzen die bisherige Zwei-Options-Sperre; veraltete Requests können neue Sperren weder überschreiben noch löschen.
 - Artikelgenerierung läuft einmalig über WP-Cron, statt den Admin-Request bis zu 90 Sekunden zu blockieren; Statusanzeige mit automatischer oder manueller Aktualisierung.

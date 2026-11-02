@@ -79,6 +79,7 @@ The API receives a strict schema containing `title`, `content_html`, `excerpt`, 
 - Single-use tokens are valid for 30 minutes; successfully queuing a job consumes its form token. A new attempt receives a new token.
 - Atomic database leases serialize queued and running generation requests per site. Expired leases are replaced using compare-and-swap; a stale request cannot delete or overwrite a new owner's lease. Queue leases expire after fifteen minutes, and worker leases after five minutes.
 - Queued jobs older than ten minutes are rejected without calling OpenAI. Duplicate cron deliveries do not repeat a claimed job. Failed or interrupted jobs are not automatically retried.
+- Job records and per-user status pointers use non-autoloaded database options, so clearing or evicting the object cache does not discard queued work or its result. Database compare-and-swap claims also prevent stale queued reads from repeating an API call. Outstanding transient-backed jobs from older versions are adopted when accessed.
 - If a worker is terminated abruptly, the status eventually reports an unknown outcome. Check the post list before resubmitting. Only when there are no active workers, administrators can clear orphaned leases with `wp option delete doag_generation_lease` and `wp option delete doag_generation_worker`.
 - After a browser or proxy interruption, check the post list first. A server-side request may still have completed; even a timeout can incur API costs.
 
@@ -107,10 +108,11 @@ These values are not automatically written to the page head or copied into Yoast
 | `Article_Service` | Permissions, generation, post creation, and hooks |
 | `Post_Meta_Adapter` | Plugin-owned SEO metadata |
 | `Generation_Lock` | Ownership-aware atomic database leases with expiry |
+| `Job_Store` | Durable, non-autoloaded job records, legacy adoption, and retention cleanup |
 | `Background_Generator` | Single-use submissions, cron scheduling, user context, job status, and exception containment |
 | `Admin\Generator_Page` | Form, nonce, queue submission, and result display |
 
-There are no custom database tables or public AJAX/REST endpoints. Background jobs use WordPress cron and short-lived transients. The namespace is `DOAG`; the text domain is `direct-openai-article-generator`.
+There are no custom database tables or public AJAX/REST endpoints. Background jobs use WordPress cron and non-autoloaded options; disposable form tokens use transients. The namespace is `DOAG`; the text domain is `direct-openai-article-generator`.
 
 ## Security
 
@@ -129,7 +131,7 @@ Other installed plugins and server-side HTTP debuggers operate within the same t
 
 **When generating an article, all completed editorial fields and the configured system prompt are sent directly to OpenAI.** The key is transmitted in the Authorization header for authentication. OpenAI also necessarily sees the WordPress server's IP address. The plugin does not send the user's email address, WordPress user ID, or existing posts as additional prompt data.
 
-Generated content is stored in the WordPress database. Background job transients retain the editorial brief, submitting user ID, job status, and result/error for up to 30 minutes, including to restore form values after errors. The configured system prompt and API key are read when the worker runs, not copied into the job. Other short-lived transients contain form tokens/user IDs and per-user job IDs. There is no permanent prompt history.
+Generated content is stored in the WordPress database. Non-autoloaded job options retain the editorial brief, submitting user ID, job status, and result/error, including to restore form values after errors. Job records and their per-user status pointers expire 30 minutes after enqueueing. A scheduled cleanup deletes them; reading an expired job also deletes it. Physical deletion can be delayed if cron is unavailable or the plugin is inactive. The configured system prompt and API key are read when the worker runs, not copied into the job. Short-lived transients contain only disposable form tokens/user IDs. There is no permanent prompt history.
 
 The plugin itself:
 
@@ -168,7 +170,7 @@ add_action( 'doag_article_created', function ( $post_id, $article, $input ) {
 
 ## Deactivation and Uninstallation
 
-Deactivation preserves all data. **Deleting/uninstalling** removes the plugin settings, including the database key and lease/legacy lock options, and unschedules generation events on all sites in a Multisite installation. Generated posts and their post metadata are explicitly preserved. The `wp-config.php` constant also remains unchanged. Short-lived form/job transients expire within 30 minutes and are removed by WordPress's normal transient cleanup; a persistent object cache manages its own expiration times.
+Deactivation preserves all data. **Deleting/uninstalling** removes the plugin settings, including the database key, lease/legacy lock options, durable job records, and status pointers, and unschedules generation and job-cleanup events on all sites in a Multisite installation. Generated posts and their post metadata are explicitly preserved. The `wp-config.php` constant also remains unchanged. Short-lived form and legacy job transients expire within 30 minutes and are removed by WordPress's normal transient cleanup; a persistent object cache manages its own expiration times.
 
 ## Development and Local Testing
 
@@ -191,7 +193,7 @@ wp eval-file wp-content/plugins/direct-openai-article-generator/tests/integratio
 
 The test uses real WordPress functions and a real test database, but intercepts all HTTP calls through `pre_http_request`. It requires no real OpenAI key and incurs no API costs. Test posts are deleted and settings restored in the `finally` block. Test data may remain if the process is terminated abruptly. The tests are included in the source repository, not the release ZIP.
 
-Checks cover permissions, the prohibited publish status, key exposure/precedence, request parameters, HTTP/JSON/transport errors, all three allowed statuses, metadata, FAQ bracket escaping, backslashes, XSS/shortcode sanitization, revalidation of filter output, insertion failures, lease contention/stale readers, background scheduling, duplicate delivery, user-context restoration, expired jobs, and safe exception handling. No PHPUnit bootstrap or additional test framework is required. Tests invoke workers directly, without requiring a live cron runner.
+Checks cover permissions, the prohibited publish status, key exposure/precedence, request parameters, HTTP/JSON/transport errors, all three allowed statuses, metadata, FAQ bracket escaping, backslashes, XSS/shortcode sanitization, revalidation of filter output, insertion failures, lease contention/stale readers, background scheduling, duplicate delivery, user-context restoration, expired jobs, and safe exception handling. Job-storage regressions cover non-autoloaded options, cache eviction, failed durable claims, cleanup scheduling failures, retention cleanup, protection of newer jobs, and legacy job adoption. No PHPUnit bootstrap or additional test framework is required. Tests invoke workers directly, without requiring a live cron runner. Run only on a disposable site: cache-eviction checks flush its object cache.
 
 ### Manual Admin Test
 

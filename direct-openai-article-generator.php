@@ -39,6 +39,7 @@ require_once __DIR__ . '/includes/interface-seo-adapter.php';
 require_once __DIR__ . '/includes/class-post-meta-adapter.php';
 require_once __DIR__ . '/includes/class-article-service.php';
 require_once __DIR__ . '/includes/class-generation-lock.php';
+require_once __DIR__ . '/includes/class-job-store.php';
 require_once __DIR__ . '/includes/class-background-generator.php';
 require_once __DIR__ . '/admin/class-settings-page.php';
 require_once __DIR__ . '/admin/class-generator-page.php';

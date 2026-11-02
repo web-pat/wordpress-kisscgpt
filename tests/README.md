@@ -1,5 +1,13 @@
 # Qualitätsprüfung Version 1.0.0
 
+## Dauerhafte Hintergrundjobs: Prüfung am 02.11.2026
+
+- WordPress 6.7, PHP 8.1 CLI und SQLite Database Integration 3.1.2 in einer wegwerfbaren Container-Umgebung.
+- PHP-Syntax aller Plugin- und Testdateien sowie PHPCS: bestanden, keine Fehler oder Warnungen.
+- Erweiterte Integrationstests bestanden: nicht automatisch geladene Joboptionen und Statusverweise, Cache-Leerung, fehlgeschlagene und veraltet gelesene Claims, Fehler beim Planen der Bereinigung, Ablauf und atomare Bereinigung ohne Beeinträchtigung neuerer Jobs, konkurrierende Übernahme bestehender transienter Jobs sowie Deinstallation unter Erhalt fremder Optionen, Beiträge und Metadaten.
+- Dieselben Tests auch mit simuliertem externen Objektcache-Modus bestanden. Kein echter Redis-/Memcached-Server getestet.
+- Keine echten OpenAI-Aufrufe oder Kosten. Nur auf einer wegwerfbaren Installation ausführen: die Tests leeren den Objektcache.
+
 ## Reparaturen: Prüfung am 01.11.2026
 
 Wegwerfbare Container-Umgebung mit WordPress 6.7, PHP 8.1 CLI und SQLite Database Integration 3.1.2:

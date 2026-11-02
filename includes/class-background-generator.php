@@ -13,6 +13,7 @@ final class Background_Generator {
 
 	public function register(): void {
 		add_action( self::HOOK, array( $this, 'run' ) );
+		add_action( Job_Store::CLEANUP_HOOK, array( Job_Store::class, 'cleanup' ) );
 	}
 
 	public function enqueue( array $input, string $form_token ): string|\WP_Error {
@@ -40,24 +41,24 @@ final class Background_Generator {
 			'created' => time(),
 			'expires' => time() + 15 * MINUTE_IN_SECONDS,
 		);
-		if ( ! set_transient( 'doag_job_' . $id, $job, 30 * MINUTE_IN_SECONDS ) ) {
+		if ( ! Job_Store::create( $id, $job ) ) {
 			Generation_Lock::release( Generation_Lock::QUEUE, $id );
 			return new \WP_Error( 'queue', __( 'The generation job could not be saved. No API request was made.', 'direct-openai-article-generator' ) );
 		}
 		$user_key = 'doag_user_job_' . $user_id;
-		$previous = get_transient( $user_key );
-		if ( ! set_transient( $user_key, $id, 30 * MINUTE_IN_SECONDS ) ) {
-			delete_transient( 'doag_job_' . $id );
+		$previous = get_option( $user_key );
+		if ( ! update_option( $user_key, $id, false ) ) {
+			Job_Store::delete( $id );
 			Generation_Lock::release( Generation_Lock::QUEUE, $id );
 			return new \WP_Error( 'queue', __( 'The generation job could not be saved. No API request was made.', 'direct-openai-article-generator' ) );
 		}
 		$scheduled = wp_schedule_single_event( time(), self::HOOK, array( $id ), true );
 		if ( is_wp_error( $scheduled ) || ! $scheduled ) {
-			delete_transient( 'doag_job_' . $id );
+			Job_Store::delete( $id );
 			if ( is_string( $previous ) ) {
-				set_transient( $user_key, $previous, 30 * MINUTE_IN_SECONDS );
+				update_option( $user_key, $previous, false );
 			} else {
-				delete_transient( $user_key );
+				delete_option( $user_key );
 			}
 			Generation_Lock::release( Generation_Lock::QUEUE, $id );
 			return new \WP_Error( 'queue', __( 'The generation job could not be scheduled. Check WordPress cron configuration. No API request was made.', 'direct-openai-article-generator' ) );
@@ -67,10 +68,15 @@ final class Background_Generator {
 	}
 
 	public function current(): ?array {
-		$id  = get_transient( 'doag_user_job_' . get_current_user_id() );
-		$job = is_string( $id ) ? get_transient( 'doag_job_' . $id ) : false;
+		$user_key = 'doag_user_job_' . get_current_user_id();
+		$id       = get_option( $user_key, get_transient( $user_key ) );
+		$job      = is_string( $id ) ? Job_Store::get( $id ) : null;
 		if ( ! is_array( $job ) || ( $job['user_id'] ?? 0 ) !== get_current_user_id() ) {
 			return null;
+		}
+		// Preserve the status link when adopting an older transient-backed job.
+		if ( get_option( $user_key ) !== $id ) {
+			Job_Store::remember_user( get_current_user_id(), $id );
 		}
 		if ( in_array( $job['status'], array( 'queued', 'running' ), true ) && $job['expires'] <= time() ) {
 			$job['status'] = 'error';
@@ -80,7 +86,7 @@ final class Background_Generator {
 	}
 
 	public function run( string $id ): void {
-		$job = get_transient( 'doag_job_' . $id );
+		$job = Job_Store::get( $id );
 		if ( ! is_array( $job ) || 'queued' !== ( $job['status'] ?? '' ) ) {
 			return;
 		}
@@ -91,18 +97,18 @@ final class Background_Generator {
 		$previous_user = get_current_user_id();
 		try {
 			// Re-read after claiming the worker; duplicate cron deliveries must not call OpenAI.
-			$job = get_transient( 'doag_job_' . $id );
+			$job = Job_Store::get( $id );
 			if ( ! is_array( $job ) || 'queued' !== ( $job['status'] ?? '' ) ) {
 				return;
 			}
 			if ( $job['created'] + 10 * MINUTE_IN_SECONDS <= time() ) {
 				$result = new \WP_Error( 'expired', __( 'The queued job expired before it started. Check WordPress cron configuration. No API request was made.', 'direct-openai-article-generator' ) );
 			} else {
-				$job['status'] = 'running';
 				// Persist the claim before making a billable request. Fail closed on storage failure.
-				if ( ! set_transient( 'doag_job_' . $id, $job, 30 * MINUTE_IN_SECONDS ) ) {
+				if ( ! Job_Store::claim( $id, $job ) ) {
 					return;
 				}
+				$job['status'] = 'running';
 				wp_set_current_user( $job['user_id'] );
 				$result = $this->service->generate( $job['input'] );
 			}
@@ -121,6 +127,6 @@ final class Background_Generator {
 			$job['status']  = 'complete';
 			$job['post_id'] = $result;
 		}
-		set_transient( 'doag_job_' . $id, $job, 30 * MINUTE_IN_SECONDS );
+		Job_Store::save( $id, $job );
 	}
 }

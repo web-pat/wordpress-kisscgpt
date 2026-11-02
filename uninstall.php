@@ -3,6 +3,16 @@
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
+$doag_cleanup_jobs = static function () {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Discover plugin-owned, non-autoloaded job options for uninstall.
+	$names = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s", $wpdb->esc_like( 'doag_job_' ) . '%', $wpdb->esc_like( 'doag_user_job_' ) . '%' ) );
+	foreach ( $names as $name ) {
+		delete_option( $name );
+	}
+	wp_unschedule_hook( 'doag_cleanup_job' );
+};
+
 if ( is_multisite() ) {
 	$doag_offset = 0;
 	do {
@@ -21,6 +31,7 @@ if ( is_multisite() ) {
 			delete_option( 'doag_generation_lease' );
 			delete_option( 'doag_generation_worker' );
 			wp_unschedule_hook( 'doag_generate_article' );
+			$doag_cleanup_jobs();
 			restore_current_blog();
 		}
 		$doag_offset += 100;
@@ -33,4 +44,5 @@ if ( is_multisite() ) {
 	delete_option( 'doag_generation_lease' );
 	delete_option( 'doag_generation_worker' );
 	wp_unschedule_hook( 'doag_generate_article' );
+	$doag_cleanup_jobs();
 }

@@ -139,10 +139,23 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 		};
 		$before = $calls;
 		$id     = $enqueue();
+		$queued_job = get_option( 'doag_job_' . $id );
 		$assert( $before === $calls && 'queued' === $jobs->current()['status'], 'Admin submission makes no HTTP request' );
+		global $wpdb;
+		$autoload = $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", 'doag_job_' . $id ) );
+		$assert( ! in_array( $autoload, wp_autoload_values_to_autoload(), true ), 'Durable job briefs are not autoloaded' );
+		$autoload = $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", 'doag_user_job_' . $user ) );
+		$assert( ! in_array( $autoload, wp_autoload_values_to_autoload(), true ), 'Durable status pointers are not autoloaded' );
+		$assert( false !== wp_next_scheduled( DOAG\Job_Store::CLEANUP_HOOK, array( $id ) ), 'Job retention cleanup is scheduled' );
+		// Simulate transient eviction as well as loss of the options object cache.
+		delete_transient( 'doag_job_' . $id );
+		delete_transient( 'doag_user_job_' . $user );
+		wp_cache_flush();
+		$assert( 'queued' === $jobs->current()['status'], 'Queued job and status survive cache eviction' );
 		$assert( is_wp_error( $jobs->enqueue( $input, wp_generate_uuid4() ) ), 'Second queued generation rejected' );
 		wp_set_current_user( 0 );
 		$jobs->run( $id );
+		wp_cache_flush();
 		$assert( 0 === get_current_user_id(), 'Cron worker restores previous user context' );
 		wp_set_current_user( $user );
 		$job = $jobs->current();
@@ -151,6 +164,14 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 		$assert( $user === (int) get_post( $job['post_id'] )->post_author, 'Background article belongs to submitting user' );
 		$jobs->run( $id );
 		$assert( $before + 1 === $calls, 'Duplicate cron delivery does not repeat API call' );
+		$stale_read = static function () use ( $queued_job ) { return $queued_job; };
+		add_filter( 'pre_option_doag_job_' . $id, $stale_read );
+		try {
+			$jobs->run( $id );
+		} finally {
+			remove_filter( 'pre_option_doag_job_' . $id, $stale_read );
+		}
+		$assert( $before + 1 === $calls && 'complete' === get_option( 'doag_job_' . $id )['status'], 'Stale queued reads cannot reset completion or repeat API call' );
 
 		$id    = $enqueue();
 		$throw = static function () use ( $secret ) { throw new RuntimeException( $secret ); };
@@ -164,19 +185,19 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 		$assert( 'error' === $job['status'] && ! str_contains( $job['error'], $secret ), 'Worker catches extension exceptions without exposing secrets' );
 		$assert( $user === get_current_user_id(), 'Worker restores user after exception' );
 		$id = $enqueue();
-		$job = get_transient( 'doag_job_' . $id );
+		$job = get_option( 'doag_job_' . $id );
 		$job['created'] = time() - 11 * MINUTE_IN_SECONDS;
-		set_transient( 'doag_job_' . $id, $job, 1800 );
+		update_option( 'doag_job_' . $id, $job, false );
 		$before = $calls;
 		$jobs->run( $id );
 		$assert( 'error' === $jobs->current()['status'] && $before === $calls, 'Expired queued job fails without HTTP' );
 		$id = $enqueue();
-		$job = get_transient( 'doag_job_' . $id );
+		$job = get_option( 'doag_job_' . $id );
 		$job['user_id'] = 0; // Model a submitting account that no longer has permission.
-		set_transient( 'doag_job_' . $id, $job, 1800 );
+		update_option( 'doag_job_' . $id, $job, false );
 		$before = $calls;
 		$jobs->run( $id );
-		$job = get_transient( 'doag_job_' . $id );
+		$job = get_option( 'doag_job_' . $id );
 		$assert( 'error' === $job['status'] && $before === $calls, 'Worker rechecks author permissions before HTTP' );
 		$assert( $user === get_current_user_id(), 'Permission failure restores user context' );
 		$token = wp_generate_uuid4();
@@ -192,16 +213,16 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 		$assert( $user === (int) get_transient( 'doag_form_' . $token ), 'Scheduling failure preserves form token' );
 		delete_transient( 'doag_form_' . $token );
 		$id = $enqueue();
-		$job = get_transient( 'doag_job_' . $id );
+		$job = get_option( 'doag_job_' . $id );
 		$job['created'] = time() - 11 * MINUTE_IN_SECONDS;
-		set_transient( 'doag_job_' . $id, $job, 1800 );
+		update_option( 'doag_job_' . $id, $job, false );
 		$jobs->run( $id );
 		$assert( 'error' === $jobs->current()['status'], 'Scheduling failure releases queue lease for later submissions' );
 		$token = wp_generate_uuid4();
 		set_transient( 'doag_form_' . $token, $user, 60 );
 		$user_key = 'doag_user_job_' . $user;
-		$previous = get_transient( $user_key );
-		$storage_filter = 'pre_update_option__transient_' . $user_key;
+		$previous = get_option( $user_key );
+		$storage_filter = 'pre_update_option_' . $user_key;
 		$reject_storage = static function ( $value, $old ) { return $old; };
 		add_filter( $storage_filter, $reject_storage, 10, 2 );
 		try {
@@ -210,8 +231,106 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 			remove_filter( $storage_filter, $reject_storage );
 		}
 		$assert( is_wp_error( $result ) && 'queue' === $result->get_error_code(), 'Status storage failure prevents scheduling a hidden job' );
-		$assert( $previous === get_transient( $user_key ) && $user === (int) get_transient( 'doag_form_' . $token ), 'Storage failure preserves prior status and unused token' );
+		$assert( $previous === get_option( $user_key ) && $user === (int) get_transient( 'doag_form_' . $token ), 'Storage failure preserves prior status and unused token' );
 		delete_transient( 'doag_form_' . $token );
+
+		// Failing cleanup scheduling must not leave durable briefs without cleanup.
+		$token = wp_generate_uuid4();
+		set_transient( 'doag_form_' . $token, $user, 60 );
+		$block_cleanup = static function ( $pre, $event ) { return DOAG\Job_Store::CLEANUP_HOOK === $event->hook ? false : $pre; };
+		add_filter( 'pre_schedule_event', $block_cleanup, 10, 2 );
+		try {
+			$result = $jobs->enqueue( $input, $token );
+		} finally {
+			remove_filter( 'pre_schedule_event', $block_cleanup );
+		}
+		$assert( is_wp_error( $result ) && $previous === get_option( $user_key ), 'Cleanup scheduling failure preserves previous status' );
+		$assert( $user === (int) get_transient( 'doag_form_' . $token ), 'Cleanup scheduling failure preserves unused token' );
+		delete_transient( 'doag_form_' . $token );
+
+		$id = $enqueue();
+		$before = $calls;
+		$reject_claim = static function ( $query ) use ( $id ) {
+			if ( str_starts_with( $query, 'UPDATE ' ) && str_contains( $query, 'doag_job_' . $id ) ) {
+				global $wpdb;
+				return $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = option_value WHERE option_name = %s", 'doag_missing_test' );
+			}
+			return $query;
+		};
+		add_filter( 'query', $reject_claim );
+		try {
+			$jobs->run( $id );
+		} finally {
+			remove_filter( 'query', $reject_claim );
+		}
+		$assert( $before === $calls && 'queued' === get_option( 'doag_job_' . $id )['status'], 'Failed durable claim prevents billable request' );
+		$old_id = $id;
+		$id = $enqueue();
+		DOAG\Job_Store::cleanup( $id );
+		$assert( is_array( get_option( 'doag_job_' . $id ) ), 'Early cleanup does not delete a retained job' );
+		$job = get_option( 'doag_job_' . $old_id );
+		$job['created'] = time() - 31 * MINUTE_IN_SECONDS;
+		update_option( 'doag_job_' . $old_id, $job, false );
+		update_option( $user_key, $old_id, false );
+		$replace_pointer = static function ( $query ) use ( $user_key, $id, &$replace_pointer ) {
+			if ( str_starts_with( $query, 'DELETE FROM ' ) && str_contains( $query, $user_key ) ) {
+				remove_filter( 'query', $replace_pointer );
+				update_option( $user_key, $id, false );
+			}
+			return $query;
+		};
+		add_filter( 'query', $replace_pointer );
+		try {
+			do_action( DOAG\Job_Store::CLEANUP_HOOK, $old_id );
+		} finally {
+			remove_filter( 'query', $replace_pointer );
+		}
+		$assert( false === get_option( 'doag_job_' . $old_id ) && $id === get_option( $user_key ), 'Cleanup removes expired brief without deleting newer status' );
+		DOAG\Job_Store::remember_user( $user, $old_id );
+		$assert( $id === get_option( $user_key ), 'Legacy status adoption cannot overwrite a newer pointer' );
+		$assert( ! DOAG\Generation_Lock::acquire( DOAG\Generation_Lock::QUEUE, 'cleanup-test', 60 ), 'Old cleanup cannot release a newer queue lease' );
+		$job = get_option( 'doag_job_' . $id );
+		$job['created'] = time() - 31 * MINUTE_IN_SECONDS;
+		update_option( 'doag_job_' . $id, $job, false );
+		$jobs->run( $id );
+		$assert( $before === $calls && false === get_option( 'doag_job_' . $id ) && false === get_option( $user_key ), 'Lazy expiry removes old job and pointer without HTTP' );
+		$assert( ! DOAG\Job_Store::save( $id, $job ) && false === get_option( 'doag_job_' . $id ), 'Late worker cannot resurrect an expired brief' );
+		$assert( false === wp_next_scheduled( DOAG\Job_Store::CLEANUP_HOOK, array( $id ) ) && false === wp_next_scheduled( DOAG\Background_Generator::HOOK, array( $id ) ), 'Expired job cleanup removes both scheduled events' );
+
+		// Upgrade an outstanding transient-backed job before its first API call.
+		$id = wp_generate_uuid4();
+		$job_ids[] = $id;
+		$legacy = array( 'user_id' => $user, 'input' => $input, 'status' => 'queued', 'created' => time(), 'expires' => time() + 900 );
+		set_transient( 'doag_job_' . $id, $legacy, 1800 );
+		set_transient( $user_key, $id, 1800 );
+		$jobs->run( $id );
+		wp_cache_flush();
+		$job = $jobs->current();
+		$assert( 'complete' === $job['status'] && $before + 1 === $calls && $id === get_option( $user_key ), 'Legacy job is adopted durably and generated once' );
+		$post_ids[] = $job['post_id'];
+		$jobs->run( $id );
+		$assert( $before + 1 === $calls, 'Adopted job cannot be generated twice' );
+
+		$id = wp_generate_uuid4();
+		$job_ids[] = $id;
+		set_transient( 'doag_job_' . $id, $legacy, 1800 );
+		$competing_claim = static function ( $query ) use ( $id, $legacy, &$competing_claim ) {
+			if ( str_starts_with( $query, 'INSERT IGNORE INTO ' ) && str_contains( $query, 'doag_job_' . $id ) ) {
+				global $wpdb;
+				remove_filter( 'query', $competing_claim );
+				$claimed = $legacy;
+				$claimed['status'] = 'running';
+				$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'doag_job_' . $id, maybe_serialize( $claimed ) ) );
+			}
+			return $query;
+		};
+		add_filter( 'query', $competing_claim );
+		try {
+			$jobs->run( $id );
+		} finally {
+			remove_filter( 'query', $competing_claim );
+		}
+		$assert( $before + 1 === $calls && 'running' === get_option( 'doag_job_' . $id )['status'], 'Concurrent legacy adoption cannot reset a running claim or repeat HTTP' );
 		define( 'DIRECT_OPENAI_ARTICLE_GENERATOR_API_KEY', 'sk-config-' . str_repeat( 'y', 32 ) );
 		$assert( DIRECT_OPENAI_ARTICLE_GENERATOR_API_KEY === $settings->api_key(), 'wp-config constant takes precedence' );
 		$assert( '' === $settings->sanitize( array() )['api_key'], 'Saving constant configuration clears stale database secret' );
@@ -219,17 +338,27 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 		( new DOAG\Admin\Settings_Page( $settings ) )->field( array( 'key' => 'api_key' ) );
 		$html = ob_get_clean();
 		$assert( ! str_contains( $html, DIRECT_OPENAI_ARTICLE_GENERATOR_API_KEY ) && ! str_contains( $html, 'type="password"' ), 'Constant key has no rendered input or value' );
+		// Exercise uninstall without deleting the installed plugin or generated posts.
+		add_option( 'doagXjob_test', 'unrelated', '', false );
+		define( 'WP_UNINSTALL_PLUGIN', DOAG_FILE );
+		require dirname( __DIR__ ) . '/uninstall.php';
+		foreach ( $job_ids as $job_id ) {
+			$assert( false === get_option( 'doag_job_' . $job_id ) && false === wp_next_scheduled( DOAG\Job_Store::CLEANUP_HOOK, array( $job_id ) ), 'Uninstall removes durable job and cleanup event' );
+		}
+		$assert( false === get_option( $user_key ) && false === get_option( DOAG\Settings::OPTION ), 'Uninstall removes durable status pointer and settings' );
+		$assert( 'unrelated' === get_option( 'doagXjob_test' ) && get_post( $post_ids[0] ) && array( 'one', 'two' ) === get_post_meta( $post_ids[0], '_doag_keywords', true ), 'Uninstall preserves unrelated options, posts and metadata' );
 		WP_CLI::success( 'All offline integration checks passed.' );
 	} finally {
 		if ( isset( $interleave ) ) {
 			remove_filter( 'query', $interleave );
 		}
 		delete_option( 'doag_test_lease' );
+		delete_option( 'doagXjob_test' );
 		foreach ( $job_ids as $job_id ) {
-			wp_clear_scheduled_hook( DOAG\Background_Generator::HOOK, array( $job_id ) );
-			delete_transient( 'doag_job_' . $job_id );
+			DOAG\Job_Store::delete( $job_id );
 			DOAG\Generation_Lock::release( DOAG\Generation_Lock::QUEUE, $job_id );
 		}
+		delete_option( 'doag_user_job_' . $user );
 		delete_transient( 'doag_user_job_' . $user );
 		remove_filter( 'pre_http_request', $http, PHP_INT_MAX );
 		foreach ( $post_ids as $id ) {
